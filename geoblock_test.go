@@ -66,6 +66,30 @@ func mustCountry(t *testing.T, db *countryDB, ipStr, want string) {
 	}
 }
 
+// TestLookupEUCountry guards against a Yaegi-only panic in decode's case 14
+// (boolean). MaxMind omits is_in_european_union entirely when it would be
+// false, so it only appears - and only exercises the boolean decode path -
+// for EU countries. Native Go tolerates `return size != 0, off, nil` typed as
+// interface{}, but Yaegi panics assigning a bool into that interface value
+// ("reflect: call of reflect.Value.SetBool on interface Value"). This test
+// uses MaxMind's public GeoIP2-Country-Test.mmdb (test-data in
+// github.com/maxmind/MaxMind-DB), which is small enough to check into the
+// repo; it is unrelated to the licensed GeoLite2 database used by TestLookup.
+func TestLookupEUCountry(t *testing.T) {
+	db, err := openCountryDB("testdata/GeoIP2-Country-Test.mmdb")
+	if err != nil {
+		t.Fatalf("openCountryDB: %v", err)
+	}
+
+	// 2001:220::/128 -> SE (Sweden), an EU country: exercises the boolean
+	// decode path via is_in_european_union.
+	mustCountry(t, db, "2001:220::", "SE")
+
+	// 214.78.120.0/22 -> US, a non-EU country: no is_in_european_union field
+	// present, so the boolean decode path is never hit for this lookup.
+	mustCountry(t, db, "214.78.120.1", "US")
+}
+
 // TestNoDatabaseFollowsAllowOnError verifies that when the database is
 // unavailable the decision falls back to allowOnError (and never panics or
 // needs a real .mmdb). This is the "DB missing/unreadable" robustness path.

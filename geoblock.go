@@ -507,7 +507,13 @@ func (db *countryDB) decode(off, base uint32, depth int) (interface{}, uint32, e
 		}
 		return arr, cur, nil
 	case 14: // boolean: size is the value (0/1); no payload bytes
-		return size != 0, off, nil
+		// Not returned as a bool: under Yaegi, assigning a bool through this
+		// interface{} return panics ("reflect: call of reflect.Value.SetBool
+		// on interface Value"). A country lookup never needs this value
+		// (e.g. is_in_european_union), so skip it like the other unused
+		// types below; the offset is unaffected since booleans carry no
+		// payload bytes.
+		return nil, off, nil
 	default:
 		// double(3), bytes(4), int32(8), float(15), container(12), end(13), ...
 		// We don't need their values for a country lookup; just skip the payload.
